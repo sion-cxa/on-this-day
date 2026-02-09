@@ -1,164 +1,103 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
+  <title>Bluesky On Thsi Day</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>On This Day (My Bluesky)</title>
-
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      margin: 16px;
-      line-height: 1.6;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 12px;
     }
+
     h1 {
-      font-size: 1.4em;
-      margin-bottom: 0.5em;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
     }
-    h2 {
-      margin-top: 1.6em;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 4px;
-    }
+
     .post {
-      margin: 10px 0 14px;
-      padding-left: 10px;
-      border-left: 3px solid #ddd;
+      background: white;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
-    .author {
-      font-size: 0.9em;
-      color: #333;
+
+    .meta {
+      font-size: 0.85rem;
+      color: #555;
+      margin-bottom: 6px;
     }
-    .author span {
-      color: #666;
+
+    .repost {
+      color: #0a7;
+      margin-right: 4px;
     }
+
+    .text {
+      white-space: pre-wrap;
+      margin-bottom: 8px;
+    }
+
+    .images {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 6px;
+    }
+
+    .images img {
+      width: 100%;
+      border-radius: 6px;
+    }
+
     .date {
-      color: #777;
-      font-size: 0.85em;
-      margin-bottom: 4px;
-    }
-    a {
-      color: #0066cc;
-      text-decoration: none;
+      font-size: 0.75rem;
+      color: #888;
+      margin-top: 6px;
     }
   </style>
 </head>
-
 <body>
-  <h1>📅 過去5年分の今日（Bluesky）</h1>
-  <div id="status">読み込み中…</div>
-  <div id="result"></div>
+
+<h1>Bluesky：n年前の今日</h1>
+<div id="posts">読み込み中…</div>
 
 <script>
-/* ===== 設定ここだけ変更すればOK ===== */
+const DID = "did:plc:fvtougt4vvulbyu3fsahiysm"; // ←あなたのDID
+const years = 5; // ←さかのぼる年数
 
-// あなたの DID
-const DID = "did:plc:fvtougt4vvulbyu3fsahiysm";
+const today = new Date();
+const month = today.getMonth();
+const date = today.getDate();
 
-// 何年分さかのぼるか
-const YEARS = 5;
-
-/* ===== 以下は基本触らなくてOK ===== */
-
-const statusEl = document.getElementById("status");
-const resultEl = document.getElementById("result");
-
-async function fetchAllPosts() {
-  let posts = [];
-  let cursor = null;
-
-  while (true) {
-    const url = new URL(
-      "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed"
-    );
-    url.searchParams.set("actor", DID);
-    url.searchParams.set("limit", "100");
-    if (cursor) url.searchParams.set("cursor", cursor);
-
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (!data.feed) break;
-
-    posts.push(...data.feed);
-    cursor = data.cursor;
-
-    if (!cursor) break;
-  }
-
-  return posts;
+function isSameMonthDay(d) {
+  return d.getMonth() === month && d.getDate() === date;
 }
 
-(async () => {
-  try {
-    const allPosts = await fetchAllPosts();
+async function fetchPosts(cursor = null, acc = []) {
+  let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${DID}&limit=100`;
+  if (cursor) url += `&cursor=${cursor}`;
 
-    const now = new Date(); // ブラウザのローカル時刻（JST）
-    const month = now.getMonth();
-    const day = now.getDate();
+  const res = await fetch(url);
+  const data = await res.json();
 
-    statusEl.textContent = "";
+  acc.push(...data.feed);
 
-    for (let i = 1; i <= YEARS; i++) {
-      const targetYear = now.getFullYear() - i;
-
-      const section = document.createElement("section");
-
-      const h2 = document.createElement("h2");
-      h2.textContent = `${targetYear}年`;
-      section.appendChild(h2);
-
-      let found = false;
-
-      for (const item of allPosts) {
-        const created = new Date(item.post.record.createdAt);
-
-        if (
-          created.getFullYear() === targetYear &&
-          created.getMonth() === month &&
-          created.getDate() === day
-        ) {
-          found = true;
-
-          const div = document.createElement("div");
-          div.className = "post";
-
-          const text = item.post.record.text || "(本文なし)";
-          const uri = item.post.uri;
-
-          const author = item.post.author;
-          const displayName = author.displayName || author.handle;
-          const handle = author.handle;
-
-          const postId = uri.split("/").pop();
-          const link = `https://bsky.app/profile/${handle}/post/${postId}`;
-
-          div.innerHTML = `
-            <div class="author">
-              ${displayName} <span>@${handle}</span>
-            </div>
-            <div class="date">${created.toLocaleString()}</div>
-            <div>${text.replace(/\n/g, "<br>")}</div>
-            <div><a href="${link}" target="_blank">元ポストを開く</a></div>
-          `;
-
-          section.appendChild(div);
-        }
-      }
-
-      if (!found) {
-        const p = document.createElement("p");
-        p.textContent = "（この日は投稿なし）";
-        section.appendChild(p);
-      }
-
-      resultEl.appendChild(section);
-    }
-  } catch (e) {
-    statusEl.textContent = "読み込みに失敗しました";
-    console.error(e);
+  if (data.cursor) {
+    return fetchPosts(data.cursor, acc);
   }
-})();
-</script>
-</body>
-</html>
+  return acc;
+}
+
+function render(posts) {
+  const container = document.getElementById("posts");
+  container.innerHTML = "";
+
+  if (posts.length === 0) {
+    container.textContent = "該当するポストがありません";
+    return;
+  }
+
+  posts.forEach(i
