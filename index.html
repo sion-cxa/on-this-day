@@ -6,15 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
-      font-family: system-ui, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       background: #f5f5f5;
       margin: 0;
       padding: 12px;
     }
+
     h1 {
       font-size: 1.2rem;
       margin-bottom: 1rem;
     }
+
     .post {
       background: white;
       border-radius: 8px;
@@ -22,66 +24,70 @@
       margin-bottom: 12px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
+
     .meta {
       font-size: 0.85rem;
       color: #555;
       margin-bottom: 6px;
     }
+
+    .meta a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .meta a:hover {
+      text-decoration: underline;
+    }
+
     .repost {
       color: #0a7;
       margin-right: 4px;
     }
+
     .text {
       white-space: pre-wrap;
       margin-bottom: 8px;
     }
+
     .images {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 6px;
     }
+
     .images img {
       width: 100%;
       border-radius: 6px;
     }
+
     .date {
       font-size: 0.75rem;
       color: #888;
       margin-top: 6px;
-    }
-    .actions {
-      margin-top: 6px;
-      font-size: 0.8rem;
-    }
-    .actions a {
-      color: #0a7;
-      text-decoration: none;
-    }
-    .actions a:hover {
-      text-decoration: underline;
     }
   </style>
 </head>
 <body>
 
 <h1>Bluesky：n年前の今日</h1>
-<div id="posts">読み込み中…</div>
+<div id="posts"></div>
+<div id="status">読み込み中…</div>
 
 <script>
 const DID = "did:plc:fvtougt4vvulbyu3fsahiysm"; // ←あなたのDID
-const years = 5;
+const years = 5;                   // ←さかのぼる年数
 
 const today = new Date();
-const thisYear = today.getFullYear();
-const month = today.getMonth();
-const date = today.getDate();
-const minYear = thisYear - years;
+const targetMonth = today.getMonth();
+const targetDate = today.getDate();
+const currentYear = today.getFullYear();
 
-const container = document.getElementById("posts");
-let firstRendered = false;
+const postsContainer = document.getElementById("posts");
+const status = document.getElementById("status");
 
-function isSameMonthDay(d) {
-  return d.getMonth() === month && d.getDate() === date;
+function isTargetDay(date) {
+  return date.getMonth() === targetMonth && date.getDate() === targetDate;
 }
 
 function renderPost(item) {
@@ -92,16 +98,19 @@ function renderPost(item) {
   const div = document.createElement("div");
   div.className = "post";
 
+  const isRepost = item.reason?.$type === "app.bsky.feed.defs#reasonRepost";
+
   const meta = document.createElement("div");
   meta.className = "meta";
 
-  const isRepost = item.reason?.$type === "app.bsky.feed.defs#reasonRepost";
-  const displayName = post.author.displayName || "";
-  const handle = post.author.handle;
+  const postUrl = `https://bsky.app/profile/${post.author.handle}/post/${post.uri.split("/").pop()}`;
 
   meta.innerHTML = `
     ${isRepost ? '<span class="repost">🔁</span>' : ''}
-    ${displayName ? displayName + " " : ""}@${handle}
+    <a href="${postUrl}" target="_blank" rel="noopener">
+      ${post.author.displayName || post.author.handle}
+      <span style="color:#888">@${post.author.handle}</span>
+    </a>
   `;
   div.appendChild(meta);
 
@@ -114,15 +123,17 @@ function renderPost(item) {
 
   const images = record.embed?.images;
   if (images?.length) {
-    const imgWrap = document.createElement("div");
-    imgWrap.className = "images";
+    const wrap = document.createElement("div");
+    wrap.className = "images";
+
     images.forEach(img => {
       const image = document.createElement("img");
       image.src = img.fullsize;
       image.loading = "lazy";
-      imgWrap.appendChild(image);
+      wrap.appendChild(image);
     });
-    div.appendChild(imgWrap);
+
+    div.appendChild(wrap);
   }
 
   const dateDiv = document.createElement("div");
@@ -130,11 +141,51 @@ function renderPost(item) {
   dateDiv.textContent = created.toLocaleString();
   div.appendChild(dateDiv);
 
-  // 🔗 元ポストへのリンク
-  const rkey = post.uri.split("/").pop();
-  const postUrl = `https://bsky.app/profile/${handle}/post/${rkey}`;
+  postsContainer.appendChild(div);
+}
 
-  const actions = document.createElement("div");
-  actions.className = "actions";
-  actions.innerHTML = `<a href="${postUrl}" target="
-  
+async function loadFeed() {
+  let cursor = null;
+  let stop = false;
+
+  while (!stop) {
+    let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${DID}&limit=100`;
+    if (cursor) url += `&cursor=${cursor}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+    cursor = data.cursor;
+
+    for (const item of data.feed) {
+      const post = item.post || item.reason?.by;
+      const created = new Date(post.record.createdAt);
+      const year = created.getFullYear();
+
+      // 🔴 取得打ち切り条件
+      if (year < currentYear - years) {
+        stop = true;
+        break;
+      }
+
+      // 🔵 今年分は除外
+      if (year === currentYear) continue;
+
+      // 🔵 「今日」だけ表示
+      if (!isTargetDay(created)) continue;
+
+      renderPost(item);
+    }
+
+    status.textContent = stop
+      ? "読み込み完了"
+      : "さらに過去を読み込み中…";
+
+    if (!cursor) break;
+  }
+}
+
+loadFeed();
+</script>
+
+</body>
+</html>
