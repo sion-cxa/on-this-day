@@ -1,6 +1,151 @@
 <!doctype html>
-<html>
-  <body>
-    テスト表示
-  </body>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>On This Day (My Bluesky)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 16px;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 1.4em;
+    }
+    h2 {
+      margin-top: 1.5em;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 4px;
+    }
+    .post {
+      margin: 8px 0 12px;
+      padding-left: 8px;
+      border-left: 3px solid #ddd;
+    }
+    .date {
+      color: #666;
+      font-size: 0.9em;
+    }
+    a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>📅 過去◯年分の今日（自分のBluesky）</h1>
+  <div id="status">読み込み中…</div>
+  <div id="result"></div>
+
+<script>
+/* ===== 設定ここだけ触ればOK ===== */
+
+// あなたの DID
+const DID = "did:plc:fvtougt4vvulbyu3fsahiysm";
+
+// 何年分さかのぼるか
+const YEARS = 5;
+
+// JST基準で判定する
+const USE_JST = true;
+
+/* ===== 以下は基本触らなくてOK ===== */
+
+const statusEl = document.getElementById("status");
+const resultEl = document.getElementById("result");
+
+function toJST(date) {
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
+}
+
+async function fetchAllPosts() {
+  let posts = [];
+  let cursor = null;
+
+  while (true) {
+    const url = new URL("https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed");
+    url.searchParams.set("actor", DID);
+    url.searchParams.set("limit", "100");
+    if (cursor) url.searchParams.set("cursor", cursor);
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.feed) break;
+
+    posts.push(...data.feed);
+    cursor = data.cursor;
+
+    if (!cursor) break;
+  }
+
+  return posts;
+}
+
+(async () => {
+  try {
+    const allPosts = await fetchAllPosts();
+
+    const now = USE_JST ? toJST(new Date()) : new Date();
+    const month = now.getMonth();
+    const date = now.getDate();
+
+    statusEl.textContent = "";
+
+    for (let i = 1; i <= YEARS; i++) {
+      const targetYear = now.getFullYear() - i;
+      const section = document.createElement("section");
+
+      const h2 = document.createElement("h2");
+      h2.textContent = `${targetYear}年`;
+      section.appendChild(h2);
+
+      let found = false;
+
+      for (const item of allPosts) {
+        const created = USE_JST
+          ? toJST(new Date(item.post.record.createdAt))
+          : new Date(item.post.record.createdAt);
+
+        if (
+          created.getFullYear() === targetYear &&
+          created.getMonth() === month &&
+          created.getDate() === date
+        ) {
+          found = true;
+
+          const div = document.createElement("div");
+          div.className = "post";
+
+          const text = item.post.record.text || "(本文なし)";
+          const uri = item.post.uri;
+          const link = `https://bsky.app/profile/${DID}/post/${uri.split("/").pop()}`;
+
+          div.innerHTML = `
+            <div class="date">${created.toLocaleString()}</div>
+            <div>${text.replace(/\n/g, "<br>")}</div>
+            <div><a href="${link}" target="_blank">元ポストを開く</a></div>
+          `;
+
+          section.appendChild(div);
+        }
+      }
+
+      if (!found) {
+        const p = document.createElement("p");
+        p.textContent = "（この日は投稿なし）";
+        section.appendChild(p);
+      }
+
+      resultEl.appendChild(section);
+    }
+  } catch (e) {
+    statusEl.textContent = "読み込みに失敗しました";
+    console.error(e);
+  }
+})();
+</script>
+</body>
 </html>
