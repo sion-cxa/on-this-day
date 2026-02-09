@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>On This Day (My Bluesky)</title>
+
   <style>
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -12,20 +13,29 @@
     }
     h1 {
       font-size: 1.4em;
+      margin-bottom: 0.5em;
     }
     h2 {
-      margin-top: 1.5em;
+      margin-top: 1.6em;
       border-bottom: 1px solid #ccc;
       padding-bottom: 4px;
     }
     .post {
-      margin: 8px 0 12px;
-      padding-left: 8px;
+      margin: 10px 0 14px;
+      padding-left: 10px;
       border-left: 3px solid #ddd;
     }
-    .date {
-      color: #666;
+    .author {
       font-size: 0.9em;
+      color: #333;
+    }
+    .author span {
+      color: #666;
+    }
+    .date {
+      color: #777;
+      font-size: 0.85em;
+      margin-bottom: 4px;
     }
     a {
       color: #0066cc;
@@ -35,12 +45,12 @@
 </head>
 
 <body>
-  <h1>📅 過去5年分の今日（自分のBluesky）</h1>
+  <h1>📅 過去5年分の今日（Bluesky）</h1>
   <div id="status">読み込み中…</div>
   <div id="result"></div>
 
 <script>
-/* ===== 設定ここだけ触ればOK ===== */
+/* ===== 設定ここだけ変更すればOK ===== */
 
 // あなたの DID
 const DID = "did:plc:fvtougt4vvulbyu3fsahiysm";
@@ -48,19 +58,19 @@ const DID = "did:plc:fvtougt4vvulbyu3fsahiysm";
 // 何年分さかのぼるか
 const YEARS = 5;
 
-
 /* ===== 以下は基本触らなくてOK ===== */
 
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
-
 
 async function fetchAllPosts() {
   let posts = [];
   let cursor = null;
 
   while (true) {
-    const url = new URL("https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed");
+    const url = new URL(
+      "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed"
+    );
     url.searchParams.set("actor", DID);
     url.searchParams.set("limit", "100");
     if (cursor) url.searchParams.set("cursor", cursor);
@@ -83,14 +93,15 @@ async function fetchAllPosts() {
   try {
     const allPosts = await fetchAllPosts();
 
-    const now = USE_JST ? toJST(new Date()) : new Date();
+    const now = new Date(); // ブラウザのローカル時刻（JST）
     const month = now.getMonth();
-    const date = now.getDate();
+    const day = now.getDate();
 
     statusEl.textContent = "";
 
     for (let i = 1; i <= YEARS; i++) {
       const targetYear = now.getFullYear() - i;
+
       const section = document.createElement("section");
 
       const h2 = document.createElement("h2");
@@ -100,14 +111,12 @@ async function fetchAllPosts() {
       let found = false;
 
       for (const item of allPosts) {
-        const created = USE_JST
-          ? toJST(new Date(item.post.record.createdAt))
-          : new Date(item.post.record.createdAt);
+        const created = new Date(item.post.record.createdAt);
 
         if (
           created.getFullYear() === targetYear &&
           created.getMonth() === month &&
-          created.getDate() === date
+          created.getDate() === day
         ) {
           found = true;
 
@@ -116,9 +125,18 @@ async function fetchAllPosts() {
 
           const text = item.post.record.text || "(本文なし)";
           const uri = item.post.uri;
-          const link = `https://bsky.app/profile/${DID}/post/${uri.split("/").pop()}`;
+
+          const author = item.post.author;
+          const displayName = author.displayName || author.handle;
+          const handle = author.handle;
+
+          const postId = uri.split("/").pop();
+          const link = `https://bsky.app/profile/${handle}/post/${postId}`;
 
           div.innerHTML = `
+            <div class="author">
+              ${displayName} <span>@${handle}</span>
+            </div>
             <div class="date">${created.toLocaleString()}</div>
             <div>${text.replace(/\n/g, "<br>")}</div>
             <div><a href="${link}" target="_blank">元ポストを開く</a></div>
