@@ -48,17 +48,12 @@ const DID = "did:plc:fvtougt4vvulbyu3fsahiysm";
 // 何年分さかのぼるか
 const YEARS = 5;
 
-// JST基準で判定する
-const USE_JST = true;
 
 /* ===== 以下は基本触らなくてOK ===== */
 
 const statusEl = document.getElementById("status");
 const resultEl = document.getElementById("result");
 
-function toJST(date) {
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000);
-}
 
 async function fetchAllPosts() {
   let posts = [];
