@@ -137,9 +137,12 @@ function renderPost(item) {
   }
 
   const dateDiv = document.createElement("div");
-  dateDiv.className = "date";
-  dateDiv.textContent = created.toLocaleString();
-  div.appendChild(dateDiv);
+dateDiv.className = "date";
+dateDiv.innerHTML = `
+  ${created.toLocaleString()}
+  · <a href="${postUrl}" target="_blank" rel="noopener">元ポストを見る</a>
+`;
+div.appendChild(dateDiv);
 
   postsContainer.appendChild(div);
 }
