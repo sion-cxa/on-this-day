@@ -49,6 +49,17 @@
       color: #888;
       margin-top: 6px;
     }
+    .actions {
+      margin-top: 6px;
+      font-size: 0.8rem;
+    }
+    .actions a {
+      color: #0a7;
+      text-decoration: none;
+    }
+    .actions a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -58,12 +69,13 @@
 
 <script>
 const DID = "did:plc:fvtougt4vvulbyu3fsahiysm"; // ←あなたのDID
-const years = 3;
+const years = 5;
 
 const today = new Date();
+const thisYear = today.getFullYear();
 const month = today.getMonth();
 const date = today.getDate();
-const minYear = today.getFullYear() - years;
+const minYear = thisYear - years;
 
 const container = document.getElementById("posts");
 let firstRendered = false;
@@ -84,9 +96,12 @@ function renderPost(item) {
   meta.className = "meta";
 
   const isRepost = item.reason?.$type === "app.bsky.feed.defs#reasonRepost";
+  const displayName = post.author.displayName || "";
+  const handle = post.author.handle;
+
   meta.innerHTML = `
     ${isRepost ? '<span class="repost">🔁</span>' : ''}
-    @${post.author.handle}
+    ${displayName ? displayName + " " : ""}@${handle}
   `;
   div.appendChild(meta);
 
@@ -115,42 +130,11 @@ function renderPost(item) {
   dateDiv.textContent = created.toLocaleString();
   div.appendChild(dateDiv);
 
-  container.appendChild(div);
-}
+  // 🔗 元ポストへのリンク
+  const rkey = post.uri.split("/").pop();
+  const postUrl = `https://bsky.app/profile/${handle}/post/${rkey}`;
 
-async function fetchAndRender(cursor = null) {
-  let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${DID}&limit=100`;
-  if (cursor) url += `&cursor=${cursor}`;
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  for (const item of data.feed) {
-    const post = item.post || item.reason?.by;
-    const created = new Date(post.record.createdAt);
-
-    // 🔴 古すぎたら取得打ち切り
-    if (created.getFullYear() < minYear) {
-      return;
-    }
-
-    // 今日と同じ月日だけ表示
-    if (isSameMonthDay(created)) {
-      if (!firstRendered) {
-        container.innerHTML = "";
-        firstRendered = true;
-      }
-      renderPost(item);
-    }
-  }
-
-  if (data.cursor) {
-    await fetchAndRender(data.cursor);
-  }
-}
-
-fetchAndRender();
-</script>
-
-</body>
-</html>
+  const actions = document.createElement("div");
+  actions.className = "actions";
+  actions.innerHTML = `<a href="${postUrl}" target="
+  
