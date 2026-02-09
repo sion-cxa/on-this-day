@@ -2,21 +2,19 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Bluesky On This Day</title>
+  <title>Bluesky n年前の今日</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      font-family: system-ui, sans-serif;
       background: #f5f5f5;
       margin: 0;
       padding: 12px;
     }
-
     h1 {
       font-size: 1.2rem;
       margin-bottom: 1rem;
     }
-
     .post {
       background: white;
       border-radius: 8px;
@@ -24,34 +22,28 @@
       margin-bottom: 12px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
-
     .meta {
       font-size: 0.85rem;
       color: #555;
       margin-bottom: 6px;
     }
-
     .repost {
       color: #0a7;
       margin-right: 4px;
     }
-
     .text {
       white-space: pre-wrap;
       margin-bottom: 8px;
     }
-
     .images {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 6px;
     }
-
     .images img {
       width: 100%;
       border-radius: 6px;
     }
-
     .date {
       font-size: 0.75rem;
       color: #888;
@@ -61,43 +53,104 @@
 </head>
 <body>
 
-<h1>Bluesky On This Day</h1>
+<h1>Bluesky：n年前の今日</h1>
 <div id="posts">読み込み中…</div>
 
 <script>
 const DID = "did:plc:fvtougt4vvulbyu3fsahiysm"; // ←あなたのDID
-const years = 3; // ←さかのぼる年数
+const years = 3;
 
 const today = new Date();
 const month = today.getMonth();
 const date = today.getDate();
+const minYear = today.getFullYear() - years;
+
+const container = document.getElementById("posts");
+let firstRendered = false;
 
 function isSameMonthDay(d) {
   return d.getMonth() === month && d.getDate() === date;
 }
 
-async function fetchPosts(cursor = null, acc = []) {
+function renderPost(item) {
+  const post = item.post || item.reason?.by;
+  const record = post.record;
+  const created = new Date(record.createdAt);
+
+  const div = document.createElement("div");
+  div.className = "post";
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+
+  const isRepost = item.reason?.$type === "app.bsky.feed.defs#reasonRepost";
+  meta.innerHTML = `
+    ${isRepost ? '<span class="repost">🔁</span>' : ''}
+    @${post.author.handle}
+  `;
+  div.appendChild(meta);
+
+  if (record.text) {
+    const text = document.createElement("div");
+    text.className = "text";
+    text.textContent = record.text;
+    div.appendChild(text);
+  }
+
+  const images = record.embed?.images;
+  if (images?.length) {
+    const imgWrap = document.createElement("div");
+    imgWrap.className = "images";
+    images.forEach(img => {
+      const image = document.createElement("img");
+      image.src = img.fullsize;
+      image.loading = "lazy";
+      imgWrap.appendChild(image);
+    });
+    div.appendChild(imgWrap);
+  }
+
+  const dateDiv = document.createElement("div");
+  dateDiv.className = "date";
+  dateDiv.textContent = created.toLocaleString();
+  div.appendChild(dateDiv);
+
+  container.appendChild(div);
+}
+
+async function fetchAndRender(cursor = null) {
   let url = `https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=${DID}&limit=100`;
   if (cursor) url += `&cursor=${cursor}`;
 
   const res = await fetch(url);
   const data = await res.json();
 
-  acc.push(...data.feed);
+  for (const item of data.feed) {
+    const post = item.post || item.reason?.by;
+    const created = new Date(post.record.createdAt);
+
+    // 🔴 古すぎたら取得打ち切り
+    if (created.getFullYear() < minYear) {
+      return;
+    }
+
+    // 今日と同じ月日だけ表示
+    if (isSameMonthDay(created)) {
+      if (!firstRendered) {
+        container.innerHTML = "";
+        firstRendered = true;
+      }
+      renderPost(item);
+    }
+  }
 
   if (data.cursor) {
-    return fetchPosts(data.cursor, acc);
+    await fetchAndRender(data.cursor);
   }
-  return acc;
 }
 
-function render(posts) {
-  const container = document.getElementById("posts");
-  container.innerHTML = "";
+fetchAndRender();
+</script>
 
-  if (posts.length === 0) {
-    container.textContent = "該当するポストがありません";
-    return;
-  }
-
-  posts.forEach(i
+</body>
+</html>
